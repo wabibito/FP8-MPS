@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "fp8-mps-emulator"
+version = "0.1.0"
+description = "Run FP8 (e4m3/e5m2) models on Apple Silicon — bit-exact FP8 emulation for PyTorch/MPS"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+authors = [{name = "wabibito"}]
+keywords = ["fp8", "e4m3", "mps", "apple-silicon", "pytorch", "quantization", "transformer-engine"]
+dependencies = ["torch>=2.4"]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.setuptools.packages.find]
+include = ["fp8_mps_emulator*"]
