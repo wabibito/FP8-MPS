@@ -49,9 +49,31 @@ lin = Fp8PTQLinear(weight_fp8, weight_scale_inv, bias, block=128)
 what FP8 GEMM paths expect after their pre-scale clamp). `quantize_e5m2` is
 provided too.
 
+## Model-walking adapters
+
+Swap a whole model's FP8 layers in place, then run it on MPS:
+
+```python
+from fp8_mps import apply_ptq_emulation, apply_te_emulation
+
+# PTQ models (Nemotron, DeepSeek-V3, Qwen3-FP8, …): auto-detects e4m3 weights
+# with a sibling weight_scale_inv and replaces them.
+n = apply_ptq_emulation(model)            # returns # layers swapped
+
+# TE models (bf16 weight + per-tensor scales recovered from _extra_state):
+n = apply_te_emulation(model, scales)     # scales = {path: {"act":…, "weight":…}}
+```
+
 ## Status
 
-Core quantizer and both linear formats are implemented and tested. Adapters
-that walk a full model and swap its FP8 layers (per format) are the next step —
-the first consumer is the [evo2Mac](https://github.com/wabibito/evo2Mac) port,
+Validated end-to-end. `quantize_e4m3` is bit-exact vs `torch.float8_e4m3fn`;
+both linear formats and both adapters are tested (9/9 unit tests). Confirmed on
+**real checkpoints** against the CPU-native-FP8 reference:
+
+- **Qwen3-0.6B-FP8** (PTQ): per-layer ~2e-3, and a full block-0 gated MLP runs
+  on MPS at 4.7e-3 (`scripts/run_qwen_mlp_mps.py`) — compute PyTorch/MPS can't
+  do natively.
+- **Evo 2 1B / 20B** (TE): per-layer ~1.5–2.2e-3 (`scripts/validate_te_evo2.py`).
+
+The first consumer is the [evo2Mac](https://github.com/wabibito/evo2Mac) port,
 whose Transformer-Engine emulation this package generalizes.
