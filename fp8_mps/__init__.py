@@ -1,4 +1,4 @@
-"""FP8 (e4m3 / e5m2) emulation for PyTorch on Apple Silicon (MPS).
+"""FP8-MPS — run FP8 (e4m3 / e5m2) models on Apple Silicon (MPS).
 
 PyTorch's MPS backend has no native float8. This package provides bit-exact
 FP8 quantization and drop-in linear layers so FP8-trained / FP8-quantized
