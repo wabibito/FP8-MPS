@@ -27,7 +27,7 @@ import torch
 import torch.nn.functional as F
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from fp8_mps_emulator import Fp8TELinear, quantize_e4m3
+from fp8_mps import Fp8TELinear, quantize_e4m3
 
 FP8_MAX = 448.0
 

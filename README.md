@@ -1,4 +1,4 @@
-# fp8-mps-emulator
+# FP8-MPS
 
 Run **FP8 models on Apple Silicon.** PyTorch's MPS backend has no native
 `float8` dtype — `x.to(torch.float8_e4m3fn)` works on CPU/CUDA but raises on
@@ -32,7 +32,7 @@ python tests/test_fp8.py  # 7 tests, all should pass
 
 ```python
 import torch
-from fp8_mps_emulator import quantize_e4m3, Fp8TELinear, Fp8PTQLinear
+from fp8_mps import quantize_e4m3, Fp8TELinear, Fp8PTQLinear
 
 # Bit-exact e4m3 rounding that runs on MPS (torch's native cast does not):
 q = quantize_e4m3(torch.randn(4, device="mps"))

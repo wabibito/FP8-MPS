@@ -1,9 +1,9 @@
-"""Tests for fp8_mps_emulator. Run: python -m pytest tests/ (or python tests/test_fp8.py)."""
+"""Tests for fp8_mps. Run: python -m pytest tests/ (or python tests/test_fp8.py)."""
 
 import torch
 import torch.nn.functional as F
 
-from fp8_mps_emulator import quantize_e4m3, quantize_e5m2, Fp8TELinear, Fp8PTQLinear
+from fp8_mps import quantize_e4m3, quantize_e5m2, Fp8TELinear, Fp8PTQLinear
 
 
 def test_e4m3_bit_exact_vs_native():
@@ -78,7 +78,7 @@ def test_ptq_linear_per_block():
 
 def test_apply_te_emulation_walks_model():
     """apply_te_emulation swaps named modules and the model still runs."""
-    from fp8_mps_emulator import apply_te_emulation, Fp8TELinear
+    from fp8_mps import apply_te_emulation, Fp8TELinear
     m = torch.nn.Sequential(torch.nn.Linear(32, 64, bias=False),
                             torch.nn.ReLU(),
                             torch.nn.Linear(64, 16, bias=False))
@@ -93,7 +93,7 @@ def test_apply_te_emulation_walks_model():
 
 def test_apply_ptq_emulation_detects_fp8_layers():
     """apply_ptq_emulation finds fp8 weight + weight_scale_inv layers."""
-    from fp8_mps_emulator import apply_ptq_emulation, Fp8PTQLinear
+    from fp8_mps import apply_ptq_emulation, Fp8PTQLinear
     lin = torch.nn.Linear(128, 256, bias=False)
     # masquerade as a stored PTQ fp8 layer
     lin.weight = torch.nn.Parameter(
