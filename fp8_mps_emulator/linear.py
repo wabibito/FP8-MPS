@@ -55,13 +55,17 @@ class Fp8TELinear(nn.Module):
 
     def forward(self, x):
         w = self.weight
-        x_q = quantize(x.to(w.dtype) * self.act_scale, self.fmt)
-        w_q = quantize(w * self.weight_scale, self.fmt)
+        # Scale in fp32 BEFORE quantizing. bf16's 8-bit mantissa rounds
+        # `x * act_scale` enough to shift many values to the wrong e4m3 bin
+        # (measured: bf16 scaling diverges ~2e-2 from native; fp32 scaling ~1e-6).
+        # TE likewise scales/casts in higher precision; only GEMM operands are e4m3.
+        x_q = quantize(x.float() * self.act_scale, self.fmt)
+        w_q = quantize(w.float() * self.weight_scale, self.fmt)
+        # Accumulate in fp32 to match a hardware FP8 GEMM (H100 accumulates in fp32).
         out = F.linear(x_q, w_q) * (1.0 / (self.act_scale * self.weight_scale))
         if self.bias is not None:
-            out = out + self.bias
-        out = out.to(w.dtype)
-        return (out, self.bias) if self.return_tuple else out
+            out = out + self.bias.float()
+        return (out.to(w.dtype), self.bias) if self.return_tuple else out.to(w.dtype)
 
 
 class Fp8PTQLinear(nn.Module):

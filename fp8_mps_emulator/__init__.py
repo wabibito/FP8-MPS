@@ -15,10 +15,12 @@ from .quant import (
     quantize_e5m2,
 )
 from .linear import Fp8TELinear, Fp8PTQLinear
+from .apply import apply_te_emulation, apply_ptq_emulation
 
 __version__ = "0.1.0"
 __all__ = [
     "quantize", "quantize_e4m3", "quantize_e5m2",
     "FP8_E4M3_MAX", "FP8_E5M2_MAX",
     "Fp8TELinear", "Fp8PTQLinear",
+    "apply_te_emulation", "apply_ptq_emulation",
 ]

@@ -30,19 +30,25 @@ def test_e5m2_roundtrip_sane():
     assert torch.allclose(q[[0, 1, 2]], x[[0, 1, 2]])
 
 
-def test_te_linear_matches_reference_quant_path():
-    """Fp8TELinear reproduces the quantize->matmul->dequant path."""
+def test_te_linear_matches_native_fp8_gemm():
+    """Fp8TELinear matches PyTorch's native float8_e4m3fn GEMM (the H100 path).
+
+    Scaling and casting happen in fp32 (like TE); only the GEMM operands are
+    e4m3. Reference uses torch.float8_e4m3fn directly.
+    """
     torch.manual_seed(1)
     W = torch.randn(64, 32, dtype=torch.bfloat16) * 0.1
     x = torch.randn(1, 8, 32, dtype=torch.bfloat16)
     act_scale, w_scale = 50.0, 1500.0
     lin = Fp8TELinear(W, None, act_scale, w_scale)
     out = lin(x)
-    # manual reference
-    xq = quantize_e4m3(x.to(W.dtype) * act_scale)
-    wq = quantize_e4m3(W * w_scale)
-    ref = F.linear(xq, wq) * (1.0 / (act_scale * w_scale))
-    assert torch.allclose(out.float(), ref.float(), atol=1e-3)
+
+    def nat(t):  # native e4m3 round (saturating), fp32
+        return t.clamp(-448, 448).to(torch.float8_e4m3fn).to(torch.float32)
+    ref = F.linear(nat(x.float() * act_scale), nat(W.float() * w_scale)) / (act_scale * w_scale)
+    # e4m3 has ~2 sig figs; small synthetic GEMMs land within a few e-3 of native.
+    rel = (out.float() - ref.float()).abs().mean() / ref.float().abs().mean().clamp_min(1e-6)
+    assert rel < 5e-3, f"rel err {rel:.2e} too high vs native FP8"
     assert out.shape == (1, 8, 64)
 
 
@@ -68,6 +74,36 @@ def test_ptq_linear_per_block():
     lin = Fp8PTQLinear(W_fp8, scale_inv, None, block=block)
     assert lin.weight.shape == (out_f, in_f)
     assert lin.weight.isfinite().all()
+
+
+def test_apply_te_emulation_walks_model():
+    """apply_te_emulation swaps named modules and the model still runs."""
+    from fp8_mps_emulator import apply_te_emulation, Fp8TELinear
+    m = torch.nn.Sequential(torch.nn.Linear(32, 64, bias=False),
+                            torch.nn.ReLU(),
+                            torch.nn.Linear(64, 16, bias=False))
+    scales = {"0": {"act": 50.0, "weight": 1500.0},
+              "2": {"act": 40.0, "weight": 1200.0}}
+    n = apply_te_emulation(m, scales)
+    assert n == 2
+    assert isinstance(m[0], Fp8TELinear) and isinstance(m[2], Fp8TELinear)
+    out = m(torch.randn(1, 8, 32, dtype=torch.bfloat16))
+    assert out.shape == (1, 8, 16) and out.isfinite().all()
+
+
+def test_apply_ptq_emulation_detects_fp8_layers():
+    """apply_ptq_emulation finds fp8 weight + weight_scale_inv layers."""
+    from fp8_mps_emulator import apply_ptq_emulation, Fp8PTQLinear
+    lin = torch.nn.Linear(128, 256, bias=False)
+    # masquerade as a stored PTQ fp8 layer
+    lin.weight = torch.nn.Parameter(
+        quantize_e4m3(lin.weight.data * 0.1).to(torch.float8_e4m3fn), requires_grad=False)
+    lin.register_buffer("weight_scale_inv", torch.rand(2, 1) * 0.01 + 0.001)
+    m = torch.nn.Sequential(lin, torch.nn.ReLU())
+    n = apply_ptq_emulation(m, block=128)
+    assert n == 1 and isinstance(m[0], Fp8PTQLinear)
+    out = m(torch.randn(1, 4, 128, dtype=torch.bfloat16))
+    assert out.shape == (1, 4, 256) and out.isfinite().all()
 
 
 def test_runs_on_mps():
