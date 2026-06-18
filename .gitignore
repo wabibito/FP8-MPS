@@ -5,3 +5,9 @@ build/
 dist/
 .pytest_cache/
 .DS_Store
+
+# Claude / assistant config — never commit
+CLAUDE.md
+.claude/
+.claude.md
+*.claude.md
